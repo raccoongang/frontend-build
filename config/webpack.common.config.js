@@ -2,6 +2,7 @@ const path = require('path');
 const RemoveEmptyScriptsPlugin = require('webpack-remove-empty-scripts');
 
 const ParagonWebpackPlugin = require('../lib/plugins/paragon-webpack-plugin/ParagonWebpackPlugin');
+
 const {
   getParagonThemeCss,
   getParagonCacheGroups,
