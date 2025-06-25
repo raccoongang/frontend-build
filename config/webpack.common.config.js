@@ -1,7 +1,10 @@
 const fs = require('fs');
 const path = require('path');
+const webpack = require('webpack');
 const RemoveEmptyScriptsPlugin = require('webpack-remove-empty-scripts');
 const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
+
+const packageConfig = require(path.resolve(process.cwd(), 'package.json'));
 
 const ParagonWebpackPlugin = require('../lib/plugins/paragon-webpack-plugin/ParagonWebpackPlugin');
 const {
@@ -19,6 +22,53 @@ const resolvePlugins = [];
 // Conditionally add TsconfigPathsPlugin if tsconfig.json exists
 if (fs.existsSync(tsconfigPath)) {
   resolvePlugins.push(new TsconfigPathsPlugin({ configFile: tsconfigPath }));
+}
+
+function getOverrides() {
+  const overridesPath = path.resolve(__dirname, `../overrides/${packageConfig.name.replace('@edx/', '')}`);
+  const overrides = [];
+
+  function processDirectory(directory) {
+    const files = fs.readdirSync(directory);
+
+    files.forEach((file) => {
+      const filePath = path.join(directory, file);
+      const stats = fs.statSync(filePath);
+
+      const relativePath = path.relative(overridesPath, filePath);
+      const originalPath = path.join(process.cwd(), relativePath);
+
+      if (stats.isFile()) {
+        if (fs.existsSync(originalPath) && /\.(js|mjs|jsx|ts|tsx)$/.test(filePath)) {
+          overrides.push({
+            from: filePath,
+            to: originalPath,
+          });
+        } else {
+          try {
+            fs.copyFileSync(filePath, originalPath);
+            console.log('File was copied to destination', originalPath);
+          } catch (err) {
+            console.log(err);
+          }
+        }
+      } else if (stats.isDirectory()) {
+        try {
+          if (!fs.existsSync(originalPath)) {
+            fs.mkdirSync(originalPath, { recursive: true });
+            console.log(originalPath, 'Directory created successfully!');
+          }
+        } catch (err) {
+          console.error(err);
+        }
+        processDirectory(filePath); // Recursively process subdirectories
+      }
+    });
+  }
+
+  processDirectory(overridesPath);
+  console.log('overrides', overrides);
+  return overrides;
 }
 
 module.exports = {
@@ -72,6 +122,9 @@ module.exports = {
     // See: https://www.npmjs.com/package/webpack-remove-empty-scripts#usage-with-mini-css-extract-plugin
     new RemoveEmptyScriptsPlugin(),
     new ParagonWebpackPlugin(),
+    ...getOverrides().map(({ from, to }) => (
+      new webpack.NormalModuleReplacementPlugin(new RegExp(to), from)
+    )),
   ],
   ignoreWarnings: [
     // Ignore warnings raised by source-map-loader.
