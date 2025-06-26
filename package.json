@@ -19,6 +19,7 @@
     "/bin",
     "/config",
     "/lib",
+    "/overrides",
     "tsconfig.json"
   ],
   "repository": {
